@@ -1,0 +1,16 @@
+---
+apiVersion: kubescheduler.config.k8s.io/v1beta1
+kind: KubeSchedulerConfiguration
+leaderElection:
+  leaderElect: true
+clientConnection:
+  kubeconfig: /var/lib/rancher/k3s/server/cred/scheduler.kubeconfig
+extenders:
+  - urlPrefix: "http://127.0.0.1:9251"
+    filterVerb: "predicate"
+    prioritizeVerb: "prioritize"
+    nodeCacheCapable: false
+    weight: 1
+    managedResources:
+      - name: "topolvm.cybozu.com/capacity"
+        ignoredByScheduler: true

@@ -1,0 +1,166 @@
+---
+apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+  name: topolvm
+  namespace: kube-system
+spec:
+  repo: https://topolvm.github.io/topolvm
+  chart: topolvm
+  version: ${chart_version}
+  targetNamespace: kube-system
+  bootstrap: true
+  valuesContent: |-
+    image:
+      pullPolicy: IfNotPresent
+%{ if image_tag != null }
+      tag: ${image_tag}
+%{ endif }
+    scheduler:
+      updateStrategy:
+        rollingUpdate:
+          maxUnavailable: 1
+        type: RollingUpdate
+
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: node-role.kubernetes.io/control-plane
+                    operator: Exists
+
+      podDisruptionBudget:
+        enabled: false
+
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          effect: NoSchedule
+        - key: node-role.kubernetes.io/master
+          effect: NoSchedule
+
+      resources:
+        requests:
+          memory: "200Mi"
+          cpu: "200m"
+        limits:
+          memory: "200Mi"
+          cpu: "200m"
+
+      priorityClassName: system-cluster-critical
+
+      # scheduler.schedulerOptions -- Tune the Node scoring.
+      # ref: https://github.com/topolvm/topolvm/blob/master/deploy/README.md
+      schedulerOptions: {}
+      #  default-divisor: 1
+      #  divisors:
+      #    ssd: 1
+      #    hdd: 10
+
+    lvmd:
+      managed: true
+
+      deviceClasses:
+        - name: ssd
+          volume-group: data-1
+          default: true
+          spare-gb: 10
+
+      resources:
+        requests:
+          memory: 500Mi
+          cpu: 500m
+        limits:
+          memory: 500Mi
+          cpu: 500m
+
+      priorityClassName: system-node-critical
+
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          effect: NoSchedule
+        - key: node-role.kubernetes.io/master
+          effect: NoSchedule
+
+      # lvmd.additionalConfigs -- Define additional LVM Daemon configs if you have additional types of nodes.
+      # Please ensure nodeSelectors are non overlapping.
+      additionalConfigs: []
+      #  - tolerations: []
+      #      nodeSelector: {}
+      #      device-classes:
+      #        - name: ssd
+      #          volume-group: myvg2
+      #          default: true
+      #          spare-gb: 10
+
+      updateStrategy:
+        type: RollingUpdate
+        rollingUpdate:
+          maxUnavailable: 1
+
+    node:
+      metrics:
+        annotations:
+          prometheus.io/scrape: "true"
+          prometheus.io/port: metrics
+
+      resources:
+        requests:
+          memory: 500Mi
+          cpu: 500m
+        limits:
+          memory: 500Mi
+          cpu: 500m
+
+      priorityClassName: system-node-critical
+
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          effect: NoSchedule
+        - key: node-role.kubernetes.io/master
+          effect: NoSchedule
+
+      updateStrategy:
+        type: RollingUpdate
+        rollingUpdate:
+          maxUnavailable: 1
+
+    controller:
+      resources:
+        requests:
+          memory: "200Mi"
+          cpu: "200m"
+        limits:
+          memory: "200Mi"
+          cpu: "200m"
+
+      priorityClassName: system-cluster-critical
+
+      updateStrategy:
+        type: RollingUpdate
+        rollingUpdate:
+          maxUnavailable: 1
+
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          effect: NoSchedule
+        - key: node-role.kubernetes.io/master
+          effect: NoSchedule
+
+      nodeSelector:
+        node-role.kubernetes.io/control-plane: "true"
+
+    storageClasses:
+      - name: topolvm
+        storageClass:
+          fsType: xfs
+          reclaimPolicy: Delete
+          annotations: {}
+          isDefaultClass: true
+          volumeBindingMode: WaitForFirstConsumer
+          allowVolumeExpansion: true
+          additionalParameters:
+            "topolvm.cybozu.com/device-class": "ssd"
+
+    podSecurityPolicy:
+      create: false
